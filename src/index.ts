@@ -4,9 +4,9 @@ import { Server, Socket, DisconnectReason } from 'socket.io';
 
 dotenv.config();
 
-console.log(await publicIpv4());
-
 const port = parseInt(process.env.PORT || '3000');
+
+console.log(`Starting server at ${await publicIpv4()}:${port}`);
 
 const server = new Server(port);
 
