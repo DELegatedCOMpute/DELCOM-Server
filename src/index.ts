@@ -1,46 +1,51 @@
-import express from 'express';
-import cors from 'cors';
 import dotenv from 'dotenv';
-import net from 'node:net';
-
-const SOCKET_TIMEOUT_SECONDS = 60;
+import { publicIpv4 } from 'public-ip';
+import { Server, Socket, DisconnectReason } from 'socket.io';
 
 dotenv.config();
 
-const server = express();
-const hostname = '0.0.0.0';
+console.log(await publicIpv4());
 
-const port = parseInt(process.env.PORT || '300');
+const port = parseInt(process.env.PORT || '3000');
 
-server.use(cors());
+const server = new Server(port);
 
-server.use(express.json());
+const clients: {
+  [key: string]: {
+    socket: Socket,
+    ready: boolean,
+    working: boolean,
+  }} = {};
 
-const users: {[key: string]: {sysInfo: object}} = {};
-
-server.get('/ping', async (req, res) => {
-  res.send('pong');
-});
-
-server.post('/postTest', (req, res) => {
-  const body = req.body;
-  // console.log(req);
-  console.log(body);
-  res.send('post pong');
-});
-
-server.post('/join', (req, res) => {
-  const ip: string | undefined = req.body.ip;
-  const sysInfo: object | undefined = req.body.sysInfo;
-  if (!ip || !net.isIP(ip) || !sysInfo) {
-    res.status(400);
-    res.send('bad join request');
-    return;
-  }
-  users[ip] = {sysInfo};
-  res.send('Joined!');
-});
-
-server.listen(port, hostname, () => {
-  console.log(`Server running on ${hostname}:${port}`);
+server.on('connection', (socket) => {
+  console.log(`Connection from ${socket.id}`);
+  clients[socket.id] = {
+    socket,
+    ready: false,
+    working: false
+  };
+  const client = clients[socket.id];
+  socket.on('join', () => {
+    client.ready = true;
+  });
+  socket.on('leave', () => {
+    client.ready = false;
+  });
+  socket.on('new_job', async (job, callback) => {
+    const targetClient = Object.values(clients).find((val) => {
+      return val.ready && !val.working;
+    });
+    if (!targetClient) {
+      callback({res: undefined, err: 'No available clients!'});
+      return;
+    }
+    targetClient.working = true;
+    const {res, err} = await targetClient.socket.emitWithAck('job', job);
+    callback({res, err});
+    targetClient.working = false;
+  });
+  socket.on('disconnect', (reason: DisconnectReason) => {
+    console.log(`Closed ${socket.id}: ${reason}`);
+    delete clients[socket.id];
+  });
 });
