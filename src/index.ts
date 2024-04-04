@@ -1,15 +1,28 @@
 import dotenv from 'dotenv';
 import { publicIpv4 } from 'public-ip';
 import { Server, Socket, DisconnectReason } from 'socket.io';
+import crypto from 'crypto';
+
+const TIMEOUT = 10 * 1000; // socket timeout in MS before error
 
 type clientType = {
+    id: string,
     socket: Socket,
     isWorker: boolean, // whether the client is willing to work
-    jobFromID: string | undefined, // socket.id of the job requester
-    jobToID: string | undefined, // socket.id of the worker assigned for the job
+    jobFromID: string | undefined, // id of the job requester
+    jobToID: string | undefined, // id of the worker assigned for the job
 };
 
-const RETRY_CNT = 3; // retries before failure
+type workerListElement = {
+  id: string,
+}
+
+const outputNames = [
+  'build_std_out', 
+  'build_std_err', 
+  'run_std_out', 
+  'run_std_err',
+];
 
 dotenv.config();
 
@@ -20,83 +33,106 @@ const server = new Server(port);
 const clients: {[key: string]: clientType} = {};
 
 server.on('connection', async (socket) => {
-  console.log(`Connection from ${socket.id}`);
-  // console.log({socket});
-  // const {isWorker, isWorking} = await socket.emitWithAck('status_check'); // TODO mirror state in client to get data to resume function
-  clients[socket.id] = { // TODO socket.id is a bad way to do this, make custom
-    socket,
-    isWorker: false,
-    jobFromID: undefined,
-    jobToID: undefined,
-  };
+  console.log(`New connection from socket id ${socket.id}`);
 
-  socket.on('join', () => {
-    clients[socket.id].isWorker = true;
+  let id: string;
+
+  socket.on('identify', (
+    arg0: {
+      id: string | undefined,
+      isWorker: boolean,
+      jobFromID: string | undefined,
+      jobToID: string | undefined,
+    },
+    callback,
+  ) => {
+    const {isWorker, jobFromID, jobToID} = arg0;
+    if (!arg0.id || !clients[arg0.id]) {
+      do {
+        id = crypto.randomBytes(2).toString('hex');
+      } while (clients[id]);
+      console.log(`socket.id ${socket.id} assigned as ${id}`);
+    } else {
+      // TODO transfer socket data?
+      id = arg0.id;
+      console.log(`socket.id ${socket.id} identified as ${id}`);
+    }
+    clients[id] = {
+      id,
+      socket,
+      isWorker,
+      jobFromID,
+      jobToID,
+    };
+    callback(id);
   });
 
-  socket.on('leave', () => {
-    clients[socket.id].isWorker = false;
+  socket.on('join_ack', (callback) => {
+    clients[id].isWorker = true;
+    callback();
+  });
+
+  socket.on('leave_ack', (callback) => {
+    clients[id].isWorker = false;
+    callback();
   });
 
   socket.on('done', () => {
-    clients[socket.id].jobFromID = undefined;
-    const from = clients[socket.id].jobFromID;
+    const from = clients[id].jobFromID;
+    clients[id].jobFromID = undefined;
     if (from) {
       clients[from].jobToID = undefined;
-      clients[from].socket.emit('finished');
+      clients[from].socket.emitWithAck('finished');
     }
   });
 
-  const outputNames = [
-    'build_std_out', 
-    'build_std_err', 
-    'run_std_out', 
-    'run_std_err'
-  ];
-
   for (const outputEvent of outputNames) {
     socket.on(outputEvent, (chunk) => {
-      const sendToID = clients[socket.id].jobFromID;
+      const sendToID = clients[id].jobFromID;
       if (!sendToID) {
         console.error(`No jobFromID on ${outputEvent}`);
         return;
       }
-      clients[sendToID].socket.emit(outputEvent, chunk);
+      clients[sendToID].socket.emitWithAck(`${outputEvent}`, chunk);
     });
   }
 
-  socket.on('send_file_data', (fileData: unknown, callback: (obj: {err: string | undefined}) => void) => {
-    const sendToID = clients[socket.id].jobToID;
+  socket.on('send_file_data_ack', (fileData: unknown, callback: (obj: {err: string | undefined}) => void) => {
+    const sendToID = clients[id].jobToID;
     if (!sendToID) {
       console.error('No jobToID on send_file_data');
       callback({err: 'No jobToID on send_file_data'});
       return;
     }
-    clients[sendToID].socket.emit('receive_file_data', fileData);
+    try {
+      clients[sendToID].socket.emitWithAck('receive_file_data_ack', fileData);
+    } catch (err) {
+      console.error(err);
+    }
   });
 
   socket.on('files_done_sending', () => {
-    const sendToID = clients[socket.id].jobToID;
+    const sendToID = clients[id].jobToID;
     if (!sendToID) {
       console.error('No jobToID on files_done_sending');
       return;
     }
-    clients[sendToID].socket.emit('start');
+    clients[sendToID].socket.emitWithAck('run_job_ack');
   });
 
-  socket.on('get_workers', (callback: (clients: {[key: string]: unknown}[]) => void) => {
+  socket.on('get_workers_ack', (callback: (clients: {[key: string]: unknown}[]) => void) => {
     const filteredWorkers = Object.values(clients).filter((client) => {
       return client.isWorker && !client.jobFromID;
     });
-    const mappedWorkers = filteredWorkers.map((client) => {
+    const mappedWorkers: workerListElement[] = filteredWorkers.map((client) => {
       return {
-        id: client.socket.id,
+        id: client.id,
       };
     });
     callback(mappedWorkers);
   });
 
-  socket.on('request_worker', async (workerID: string, callback: (obj?: {err: string}) => void) => {
+  socket.on('new_job_ack', async (workerID: string, fileNames: string, callback: (arg0?: {err: string}) => void) => {
     if (!workerID) {
       callback({err: 'No worker provided'});
       return;
@@ -109,14 +145,14 @@ server.on('connection', async (socket) => {
       callback({err: 'Worker already working'});
       return;
     }
-    clients[workerID].jobFromID = socket.id;
-    clients[socket.id].jobToID = workerID;
-    const {err} = await clients[workerID].socket.emitWithAck('new_job');
-    if (err) {
+    clients[workerID].jobFromID = id;
+    clients[id].jobToID = workerID;
+    const ack : {err: unknown} | undefined = await clients[workerID].socket.emitWithAck('new_job_ack', fileNames);
+    if (ack?.err) {
       console.warn(`Client ${workerID} failed to set up new job. Client error:`);
-      console.warn(err);
+      console.warn(ack.err);
       clients[workerID].jobFromID = undefined;
-      clients[socket.id].jobToID = undefined;
+      clients[id].jobToID = undefined;
       callback({err: `Client ${workerID} failed to set up new job.`});
       return;
     }
@@ -125,8 +161,8 @@ server.on('connection', async (socket) => {
 
   socket.on('disconnect', (reason: DisconnectReason) => {
     // TODO cleanup
-    console.log(`Closed ${socket.id}: ${reason}`);
-    delete clients[socket.id];
+    console.log(`Closed ${id}: ${reason}`);
+    delete clients[id];
   });
 });
 

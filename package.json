@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "description": "Server to manage delcom cluster",
-  "main": "src/index.ts",
+  "main": "build/index.ts",
   "type": "module",
   "scripts": {
     "build": "rimraf ./build && tsc",
