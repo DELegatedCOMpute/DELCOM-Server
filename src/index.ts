@@ -12,6 +12,7 @@ const outputNames = [
   'run_std_err',
 ];
 
+// Load from .env
 dotenv.config();
 
 const port = parseInt(process.env.PORT || '3000');
@@ -20,6 +21,7 @@ const server = new Server(port);
 
 const clients: {[key: string]: DCST.Client} = {};
 
+// Listen for connection event 
 server.on('connection', async (socket) => {
   let id: string;
 
