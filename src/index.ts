@@ -31,24 +31,23 @@ server.on('connection', async (socket) => {
     arg0: DCST.Identity,
     callback: (id: string) => void,
   ) => {
-    const {isWorker, jobFromID, jobToID} = arg0;
-    if (!arg0.id || !clients[arg0.id]) {
+    if (arg0.id && clients[arg0.id]) {
       do {
         id = crypto.randomBytes(2).toString('hex');
       } while (clients[id]);
       console.log(`socket.id ${socket.id} assigned as ${id}`);
+      clients[id] = {
+        id,
+        socket,
+        isWorker: false,
+        jobFromID: undefined,
+        jobToID:  undefined,
+      };
     } else {
-      // TODO transfer socket data?
+      console.log(`socket.id ${socket.id} identified as ${arg0.id}`);
       id = arg0.id;
-      console.log(`socket.id ${socket.id} identified as ${id}`);
+      clients[id].socket = socket;
     }
-    clients[id] = {
-      id,
-      socket,
-      isWorker,
-      jobFromID,
-      jobToID,
-    };
     callback(id);
   });
 

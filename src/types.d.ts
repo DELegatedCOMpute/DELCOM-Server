@@ -3,7 +3,6 @@ import { Socket } from 'socket.io';
 export type CallbackWithErr = (arg0?: { err: string }) => void;
 
 export type WorkerInfo = {
-  id: string,
   machineArch: string,
   cpus: {
     model: string,
@@ -14,9 +13,6 @@ export type WorkerInfo = {
 
 export type Identity = {
   id: string,
-  isWorker: boolean,
-  jobFromID?: string,
-  jobToID?: string,
   workerInfo?: WorkerInfo,
 }
 
