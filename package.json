@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "description": "Server to manage delcom cluster",
-  "main": "src/index.ts",
+  "main": "build/index.ts",
   "type": "module",
   "scripts": {
     "build": "rimraf ./build && tsc",
@@ -21,6 +21,7 @@
   },
   "homepage": "https://github.com/DELegatedCOMpute/CentralTracker#readme",
   "dependencies": {
+    "delcom-client": "github:DELegatedCOMpute/DELCOM-Client",
     "dotenv": "^16.4.5",
     "public-ip": "^6.0.2",
     "socket.io": "^4.7.5"
