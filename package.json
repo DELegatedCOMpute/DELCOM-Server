@@ -5,6 +5,7 @@
   "description": "Server to manage delcom cluster",
   "main": "build/index.ts",
   "type": "module",
+  "types": "src/types.d.ts",
   "scripts": {
     "build": "rimraf ./build && tsc",
     "start": "npm run build && node build/index.js",
