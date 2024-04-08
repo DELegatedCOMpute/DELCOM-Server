@@ -1,21 +1,9 @@
 import dotenv from 'dotenv';
 import { publicIpv4 } from 'public-ip';
-import { Server, Socket, DisconnectReason } from 'socket.io';
+import { Server } from 'socket.io';
 import crypto from 'crypto';
-
-const TIMEOUT = 10 * 1000; // socket timeout in MS before error
-
-type clientType = {
-    id: string,
-    socket: Socket,
-    isWorker: boolean, // whether the client is willing to work
-    jobFromID: string | undefined, // id of the job requester
-    jobToID: string | undefined, // id of the worker assigned for the job
-};
-
-type workerListElement = {
-  id: string,
-}
+// import type * as DCCT from 'delcom-client';
+import type * as DCST from './types.d.ts';
 
 const outputNames = [
   'build_std_out', 
@@ -30,21 +18,16 @@ const port = parseInt(process.env.PORT || '3000');
 console.log(`Starting server at ${await publicIpv4()}:${port}`);
 const server = new Server(port);
 
-const clients: {[key: string]: clientType} = {};
+const clients: {[key: string]: DCST.Client} = {};
 
 server.on('connection', async (socket) => {
-  console.log(`New connection from socket id ${socket.id}`);
-
   let id: string;
 
+  console.log(`New connection from socket id ${socket.id}`);
+
   socket.on('identify', (
-    arg0: {
-      id: string | undefined,
-      isWorker: boolean,
-      jobFromID: string | undefined,
-      jobToID: string | undefined,
-    },
-    callback,
+    arg0: DCST.Identity,
+    callback: (id: string) => void,
   ) => {
     const {isWorker, jobFromID, jobToID} = arg0;
     if (!arg0.id || !clients[arg0.id]) {
@@ -67,13 +50,15 @@ server.on('connection', async (socket) => {
     callback(id);
   });
 
-  socket.on('join_ack', (callback) => {
+  socket.on('join_ack', (workerInfo: DCST.WorkerInfo, callback) => {
     clients[id].isWorker = true;
+    clients[id].workerInfo = workerInfo;
     callback();
   });
 
   socket.on('leave_ack', (callback) => {
     clients[id].isWorker = false;
+    delete clients[id].workerInfo;
     callback();
   });
 
@@ -122,14 +107,14 @@ server.on('connection', async (socket) => {
 
   socket.on('get_workers_ack', (callback: (clients: {[key: string]: unknown}[]) => void) => {
     const filteredWorkers = Object.values(clients).filter((client) => {
-      return client.isWorker && !client.jobFromID;
+      return client.isWorker && !client.jobFromID && client.workerInfo;
     });
-    const mappedWorkers: workerListElement[] = filteredWorkers.map((client) => {
-      return {
-        id: client.id,
-      };
+    const filteredInfo = filteredWorkers.map((client) => {
+      return client.workerInfo;
+    }).filter((client): client is DCST.WorkerInfo => {
+      return client != undefined;
     });
-    callback(mappedWorkers);
+    callback(filteredInfo);
   });
 
   socket.on('new_job_ack', async (workerID: string, fileNames: string, callback: (arg0?: {err: string}) => void) => {
@@ -159,12 +144,14 @@ server.on('connection', async (socket) => {
     callback();
   });
 
-  socket.on('disconnect', (reason: DisconnectReason) => {
+  socket.on('disconnect', (reason) => {
     // TODO cleanup
     console.log(`Closed ${id}: ${reason}`);
     delete clients[id];
   });
 });
+
+// DEBUG
 
 setInterval(() => {
   console.log('\nACTIVE CLIENTS:');
