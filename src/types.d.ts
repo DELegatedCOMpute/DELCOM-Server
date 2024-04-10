@@ -11,6 +11,11 @@ export type WorkerInfo = {
   ram: number,
 }
 
+export type Workers = {
+  key: string,
+  workerInfo: WorkerInfo,
+}[];
+
 export type Identity = {
   id: string,
   workerInfo?: WorkerInfo,
@@ -24,7 +29,5 @@ export type Client = {
   jobToID: string | undefined, // id of the worker assigned for the job
   workerInfo?: WorkerInfo,
 }
-
-export type WorkerList = WorkerInfo[];
 
 export type JoinAckArg = WorkerInfo;

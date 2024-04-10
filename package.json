@@ -7,20 +7,21 @@
   "type": "module",
   "types": "src/types.d.ts",
   "scripts": {
+    "prepare": "npm run build",
     "build": "rimraf ./build && tsc",
     "start": "npm run build && node build/index.js",
     "start:dev": "tsx watch src/index.ts"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/DELegatedCOMpute/CentralTracker.git"
+    "url": "git+https://github.com/DELegatedCOMpute/DELCOM-Server.git"
   },
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/DELegatedCOMpute/CentralTracker/issues"
+    "url": "https://github.com/DELegatedCOMpute/DELCOM-Server/issues"
   },
-  "homepage": "https://github.com/DELegatedCOMpute/CentralTracker#readme",
+  "homepage": "https://github.com/DELegatedCOMpute/DELCOM-Server#readme",
   "dependencies": {
     "delcom-client": "github:DELegatedCOMpute/DELCOM-Client",
     "dotenv": "^16.4.5",

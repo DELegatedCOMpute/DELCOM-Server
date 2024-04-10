@@ -2,7 +2,7 @@ import dotenv from 'dotenv';
 import { publicIpv4 } from 'public-ip';
 import { Server } from 'socket.io';
 import crypto from 'crypto';
-import type * as DCCT from 'delcom-client';
+// import type * as DCCT from 'delcom-client';
 import type * as DCST from './types.d.ts';
 
 const outputNames = [
@@ -106,16 +106,19 @@ server.on('connection', async (socket) => {
     clients[sendToID].socket.emitWithAck('run_job_ack');
   });
 
-  socket.on('get_workers_ack', (callback: (clients: {[key: string]: unknown}[]) => void) => {
-    const filteredWorkers = Object.values(clients).filter((client) => {
-      return client.isWorker && !client.jobFromID && client.workerInfo;
+  socket.on('get_workers_ack', (callback: (availableWorkers: DCST.Workers) => void) => {
+    const availableWorkers: DCST.Workers = [];
+    Object.entries(clients).forEach((clientKeyVal) => {
+      const key = clientKeyVal[0];
+      const val = clientKeyVal[1];
+      if (val.isWorker && !val.jobFromID && val.workerInfo) {
+        availableWorkers.push({
+          key,
+          workerInfo: val.workerInfo,
+        });
+      }
     });
-    const filteredInfo = filteredWorkers.map((client) => {
-      return client.workerInfo;
-    }).filter((client): client is DCST.WorkerInfo => {
-      return client != undefined;
-    });
-    callback(filteredInfo);
+    callback(availableWorkers);
   });
 
   socket.on('new_job_ack', async (workerID: string, fileNames: string, callback: (arg0?: {err: string}) => void) => {
