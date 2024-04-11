@@ -28,38 +28,31 @@ server.on('connection', async (socket) => {
   console.log(`New connection from socket id ${socket.id}`);
 
   socket.on('identify', (
-    arg0: DCST.Identity,
+    workerInfo: DCST.WorkerInfo, // TODO remove
     callback: (id: string) => void,
   ) => {
-    if (arg0.id && clients[arg0.id]) {
-      do {
-        id = crypto.randomBytes(2).toString('hex');
-      } while (clients[id]);
-      console.log(`socket.id ${socket.id} assigned as ${id}`);
-      clients[id] = {
-        id,
-        socket,
-        isWorker: false,
-        jobFromID: undefined,
-        jobToID:  undefined,
-      };
-    } else {
-      console.log(`socket.id ${socket.id} identified as ${arg0.id}`);
-      id = arg0.id;
-      clients[id].socket = socket;
-    }
+    do {
+      id = crypto.randomBytes(2).toString('hex');
+    } while (clients[id]);
+    console.log(`socket.id ${socket.id} assigned as ${id}`);
+    clients[id] = {
+      id,
+      socket,
+      isWorker: false,
+      jobFromID: undefined,
+      jobToID:  undefined,
+      workerInfo,
+    };
     callback(id);
   });
 
-  socket.on('join_ack', (workerInfo: DCST.WorkerInfo, callback) => {
+  socket.on('join_ack', (callback) => {
     clients[id].isWorker = true;
-    clients[id].workerInfo = workerInfo;
     callback();
   });
 
   socket.on('leave_ack', (callback) => {
     clients[id].isWorker = false;
-    delete clients[id].workerInfo;
     callback();
   });
 
@@ -149,8 +142,15 @@ server.on('connection', async (socket) => {
   });
 
   socket.on('disconnect', (reason) => {
-    // TODO cleanup
     console.log(`Closed ${id}: ${reason}`);
+    const to = clients[id].jobToID;
+    const from = clients[id].jobFromID;
+    if (to && clients[to]) {
+      clients[to].socket.emit('delegator_disconnect');
+    }
+    if (from && clients[from]) {
+      clients[from].socket.emit('worker_disconnect');
+    }
     delete clients[id];
   });
 });
@@ -165,6 +165,7 @@ setInterval(() => {
       isWorker: client[1].isWorker,
       jobFromID: client[1].jobFromID,
       jobToID: client[1].jobToID,
+      workerInfo: client[1].workerInfo,
     };
   });
   console.log(filteredClients);

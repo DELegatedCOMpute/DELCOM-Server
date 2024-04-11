@@ -16,11 +16,6 @@ export type Workers = {
   workerInfo: WorkerInfo,
 }[];
 
-export type Identity = {
-  id: string,
-  workerInfo?: WorkerInfo,
-}
-
 export type Client = {
   id: string,
   socket: Socket,
