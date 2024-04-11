@@ -144,12 +144,12 @@ server.on('connection', async (socket) => {
 
   socket.on('disconnect', (reason) => {
     console.log(`Closed ${id}: ${reason}`);
-    const to = clients[id].jobToID;
-    const from = clients[id].jobFromID;
-    if (to && clients[to]) {
+    const to = clients[id]?.jobToID;
+    const from = clients[id]?.jobFromID;
+    if (to && clients[to] && clients[to].id != id) {
       clients[to].socket.emit('delegator_disconnect');
     }
-    if (from && clients[from]) {
+    if (from && clients[from] && clients[from].id != id) {
       clients[from].socket.emit('worker_disconnect');
     }
     delete clients[id];
@@ -158,17 +158,17 @@ server.on('connection', async (socket) => {
 
 // DEBUG
 
-setInterval(() => {
-  console.log('\nACTIVE CLIENTS:');
-  const filteredClients = Object.entries(clients).map((client) => {
-    return {
-      id: client[0],
-      isWorker: client[1].isWorker,
-      jobFromID: client[1].jobFromID,
-      jobToID: client[1].jobToID,
-      workerInfo: client[1].workerInfo,
-    };
-  });
-  console.log(filteredClients);
-  console.log('\n');
-}, 5000);
+// setInterval(() => {
+//   console.log('\nACTIVE CLIENTS:');
+//   const filteredClients = Object.entries(clients).map((client) => {
+//     return {
+//       id: client[0],
+//       isWorker: client[1].isWorker,
+//       jobFromID: client[1].jobFromID,
+//       jobToID: client[1].jobToID,
+//       workerInfo: client[1].workerInfo,
+//     };
+//   });
+//   console.log(filteredClients);
+//   console.log('\n');
+// }, 1000);
