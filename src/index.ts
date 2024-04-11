@@ -102,11 +102,11 @@ server.on('connection', async (socket) => {
   socket.on('get_workers_ack', (callback: (availableWorkers: DCST.Workers) => void) => {
     const availableWorkers: DCST.Workers = [];
     Object.entries(clients).forEach((clientKeyVal) => {
-      const key = clientKeyVal[0];
+      const workerID = clientKeyVal[0];
       const val = clientKeyVal[1];
       if (val.isWorker && !val.jobFromID && val.workerInfo) {
         availableWorkers.push({
-          key,
+          workerID,
           workerInfo: val.workerInfo,
         });
       }
@@ -114,7 +114,8 @@ server.on('connection', async (socket) => {
     callback(availableWorkers);
   });
 
-  socket.on('new_job_ack', async (workerID: string, fileNames: string, callback: (arg0?: {err: string}) => void) => {
+  socket.on('new_job_ack', async (arg0: {workerID: string, fileNames: string[]}, callback: (arg0?: {err: string}) => void) => {
+    const { workerID, fileNames } = arg0;
     if (!workerID) {
       callback({err: 'No worker provided'});
       return;

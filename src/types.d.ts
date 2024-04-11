@@ -12,7 +12,7 @@ export type WorkerInfo = {
 }
 
 export type Workers = {
-  key: string,
+  workerID: string,
   workerInfo: WorkerInfo,
 }[];
 
