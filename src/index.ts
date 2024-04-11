@@ -2,7 +2,6 @@ import dotenv from 'dotenv';
 import { publicIpv4 } from 'public-ip';
 import { Server } from 'socket.io';
 import crypto from 'crypto';
-// import type * as DCCT from 'delcom-client';
 import type * as DCST from './types.d.ts';
 
 const outputNames = [
