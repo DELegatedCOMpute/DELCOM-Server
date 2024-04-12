@@ -11,10 +11,10 @@ export type WorkerInfo = {
   ram: number,
 }
 
-export type Workers = {
+export type Worker = {
   workerID: string,
   workerInfo: WorkerInfo,
-}[];
+};
 
 export type Client = {
   id: string,

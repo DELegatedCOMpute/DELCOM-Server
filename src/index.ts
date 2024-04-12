@@ -98,8 +98,8 @@ server.on('connection', async (socket) => {
     clients[sendToID].socket.emitWithAck('run_job_ack');
   });
 
-  socket.on('get_workers_ack', (callback: (availableWorkers: DCST.Workers) => void) => {
-    const availableWorkers: DCST.Workers = [];
+  socket.on('get_workers_ack', (callback: (availableWorkers: DCST.Worker[]) => void) => {
+    const availableWorkers: DCST.Worker[] = [];
     Object.entries(clients).forEach((clientKeyVal) => {
       const workerID = clientKeyVal[0];
       const val = clientKeyVal[1];
