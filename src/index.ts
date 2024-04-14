@@ -75,7 +75,7 @@ server.on('connection', async (socket) => {
     });
   }
 
-  socket.on('send_file_data_ack', (fileData: unknown, callback: (obj: {err: string | undefined}) => void) => {
+  socket.on('send_file_data_ack', async (fileData: unknown, callback: (obj?: {err: string}) => void) => {
     const sendToID = clients[id].jobToID;
     if (!sendToID) {
       console.error('No jobToID on send_file_data');
@@ -83,7 +83,8 @@ server.on('connection', async (socket) => {
       return;
     }
     try {
-      clients[sendToID].socket.emitWithAck('receive_file_data_ack', fileData);
+      const ack = await clients[sendToID].socket.emitWithAck('receive_file_data_ack', fileData);
+      callback(ack);
     } catch (err) {
       console.error(err);
     }
@@ -95,7 +96,7 @@ server.on('connection', async (socket) => {
       console.error('No jobToID on files_done_sending');
       return;
     }
-    clients[sendToID].socket.emitWithAck('run_job_ack');
+    clients[sendToID].socket.emitWithAck('run_job');
   });
 
   socket.on('get_workers_ack', (callback: (availableWorkers: DCST.Worker[]) => void) => {
@@ -145,29 +146,42 @@ server.on('connection', async (socket) => {
     console.log(`Closed ${id}: ${reason}`);
     const to = clients[id]?.jobToID;
     const from = clients[id]?.jobFromID;
-    if (to && clients[to] && clients[to].id != id) {
+    if (to && clients[to] && !clients[to].socket.disconnected && clients[to].id != id) {
       clients[to].socket.emit('delegator_disconnect');
     }
-    if (from && clients[from] && clients[from].id != id) {
+    if (from && clients[from] && !clients[from].socket.disconnected && clients[from].id != id) {
       clients[from].socket.emit('worker_disconnect');
     }
     delete clients[id];
+  });
+
+  socket.on('clearing_job', (reason) => {
+    console.log(reason);
+    const client = clients[id];
+    if (client) {
+      const from = client.jobFromID;
+      if (from && clients[from]) {
+        clients[from].jobToID = undefined;
+        clients[from].socket.emit('delegation_failed', reason);
+      }
+      client.jobFromID = undefined;
+    }
   });
 });
 
 // DEBUG
 
-// setInterval(() => {
-//   console.log('\nACTIVE CLIENTS:');
-//   const filteredClients = Object.entries(clients).map((client) => {
-//     return {
-//       id: client[0],
-//       isWorker: client[1].isWorker,
-//       jobFromID: client[1].jobFromID,
-//       jobToID: client[1].jobToID,
-//       workerInfo: client[1].workerInfo,
-//     };
-//   });
-//   console.log(filteredClients);
-//   console.log('\n');
-// }, 1000);
+setInterval(() => {
+  console.log('\nACTIVE CLIENTS:');
+  const filteredClients = Object.entries(clients).map((client) => {
+    return {
+      id: client[0],
+      isWorker: client[1].isWorker,
+      jobFromID: client[1].jobFromID,
+      jobToID: client[1].jobToID,
+      workerInfo: client[1].workerInfo,
+    };
+  });
+  console.log(filteredClients);
+  console.log('\n');
+}, 2500);
